@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div id="app" 
+        state-open="false"
+        state-name="'allwell'"
+        state-currentPage="1"
+        state-itemsPerPage="3"
+        before-imp="type"
+        $route="/"
+    >
+    <share state-users="'user'">
+        <span bind="users.value"></span>
+        <input type="text" model="users"/>
+        <div 
+            state-current="0"
+            state-more="
+            [
+                {name:'allwell',age:40},
+                {name:'oriso',age:30},
+                {name:'oriso2',age:31},
+                {name:'oriso3',age:32},
+                {name:'oriso4',age:33},
+                {name:'oriso5',age:34},
+                {name:'oriso6',age:35},
+                {name:'oriso7',age:36},
+                {name:'oriso8',age:37},
+                {name:'oriso9',age:38},
+                ]"
+        >
+            <!-- Paginated content -->
+            <div for="item,i in more.value.slice((currentpage.value-1)*itemsperpage.value, currentpage.value*itemsperpage.value)" >
+                <div>{{item.name}}</div>
+                <span>{{item.age}}</span>
+                <span bind="users.value"></span>
+            </div>
+            <span>@{more.value.length}</span>
+
+            <!-- Pagination controls -->
+            <div class="pagination">
+                <button 
+                    click="currentpage.value > 1 ? currentpage.value-- : null"
+                    class="pagination-btn"
+                >Previous</button>
+                
+                <span>Page @{currentpage.value} of @{Math.ceil(more.value.length/itemsperpage.value)}</span>
+                
+                <button 
+                    click="currentpage.value < Math.ceil(more.value.length/itemsperpage.value) ? currentpage.value++ : null"
+                    class="pagination-btn"
+                >Next</button>
+            </div>
+        </div>
+        
+        <button click="open.value=!open.value">click me</button>  
+        <Text user="(users)">
+            <span>Testing</span>
+            <Text>
+                <span>second</span>
+            </Text>
+        </Text> 
+    </share>
+
+    <Counter></Counter>
+    </div>
+
+</body>
+</html>
