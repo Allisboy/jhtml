@@ -7,32 +7,8 @@
     <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-    <div id="app" 
-        state-open="false"
-        state-array="[1,2,3]"
-        state-enter="''"
-        before-imp="type"
-        $route="/"
-    >
+    <div id="app">
         
-    <Counter></Counter>
-    <button click="open.value=!open.value;console.log(open.value)">remove/add</button>
-    <h1>Array</h1>
-    <input type="text" model="enter"/>
-    <button on:click="if(enter.value!=='')array.value.push(enter.value);">add into</button>
-    <div for="no in array.value">{{no}}</div>
-    <Dropdown head="Drop">
-        <div>allekke</div>
-        <div>allekke</div>
-        <div>allekke</div>
-        <div>allekke</div>
-        <Dropdown head="Drop-2">
-            <div>allekke 2</div>
-            <div>allekke 2</div>
-            <div>allekke 2</div>
-            <div>allekke 2</div>  
-        </Dropdown>
-    </Dropdown>
     </div>
     <script src="./main.js" type="module"></script>
 </body>

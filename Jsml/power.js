@@ -1,6 +1,6 @@
-import { regenerate, state, stateWatch } from "./index.js";
+import { component, components, regenerate, state, stateWatch ,render} from "./index.js";
 import { createEffect } from "./reactive.js";
-import { replaceOperators } from "./utils.js";
+import { replaceOperators,elementTrack } from "./utils.js";
 
 
 export const bind=(el,exp,context)=>{
@@ -39,11 +39,12 @@ export const model = (el,exp,childContext) => {
   const resolvePath = (path, obj) => {
  return path.split('.').reduce((acc, key) => acc?.[key], obj);
 };
+
    const updateValue=(value) => {
          const keys = Object.keys(childContext)
 const values = keys.map((key) => resolvePath(key, childContext));
 value = new Function(...keys, `
-         return ${exp}.value=${value}
+         return ${exp}=${value}
          `)(...values)
    }
    el.addEventListener('input', (e) => {
@@ -55,7 +56,7 @@ value = new Function(...keys, `
         const keys=Object.keys(childContext)
         const values = keys.map((key) => resolvePath(key, childContext));
          value=new Function(...keys,`
-         return ${exp}.value
+         return ${exp}
          `)(...values)
       
       
@@ -69,12 +70,18 @@ value = new Function(...keys, `
 
 
 export const If=(el,exp,context)=>{
-    const comment=document.createComment("it's if")
+  const comment=document.createComment("it's if")
+  let compo;
+    if(components.has(el.tagName)){
+      el.setAttribute('suspense','true')
+      el.removeAttribute('if')
+    }
     const commentEsle=document.createComment("it's else")
     const elseSibling=el.nextElementSibling 
     const sibling=elseSibling?.attributes || []
     const findElse=Array.from(sibling).map((a)=>a.name === 'else')
     el.replaceWith(comment)
+    
     const evaluate=()=>{
         try {
             // Extract keys and values from childContext
@@ -89,13 +96,27 @@ export const If=(el,exp,context)=>{
                 if (elseSibling && findElse[0]) {
                     elseSibling.replaceWith(commentEsle)
                 }
-                comment.replaceWith(el)
+                if(components.has(el.tagName)){
+               const ele=component(el,context)
+                  compo=ele
+                  elementTrack(compo).beforeEnter().enter()
+                  comment.replaceWith(compo)
+                }else{
+                  elementTrack(el).beforeEnter().enter()
+                  comment.replaceWith(el)
+                }
 
             }else{
                 if (elseSibling && findElse[0]) {
                     commentEsle.replaceWith(elseSibling)
                 }
-                el.replaceWith(comment)
+                if(components.has(el.tagName)){
+                  elementTrack(compo).beforeLeave().leave(()=>compo.replaceWith(comment))
+                    
+                }else{
+                  elementTrack(el).beforeLeave().leave(()=>el.replaceWith(comment))
+                  
+                }
             }
           } catch {
             return ''; // Return empty string for invalid placeholders
@@ -112,7 +133,7 @@ export const If=(el,exp,context)=>{
       const enterTo = el.getAttribute('enter-to')
       const leave = el.getAttribute('leave')
       const leaveTo = el.getAttribute('leave-to')
-      const duration = el.getAttribute('duration') || 3000
+      const duration = el.getAttribute('duration') || 300
       el.replaceWith(comment)
       const evaluate=()=>{
         try {
@@ -123,64 +144,73 @@ export const If=(el,exp,context)=>{
               };
               const values = keys.map((key) => resolvePath(key, context));
             const condition= new Function(...keys, `return ${exp}`)(...values);
-            
-            if (condition && el.getAttribute('entering') === '0') {
-              console.log(el.getAttribute('enter-to'))
+            if(el.getAttribute('entering') === '0'){
+            if (condition) {
               enter?.split(' ').forEach(cl => {
+                if(cl === '')return
                 el.classList.add(cl)
               })
               // Enter transition
-              
               setTimeout(() => {
                 requestAnimationFrame(() => {
                   enter?.split(' ').forEach(cl => {
+                    if(cl === '')return
                     el.classList.remove(cl)
                   })
                   
                   enterTo?.split(' ').forEach(cl => {
+                    if(cl === '')return
                     el.classList.add(cl) 
                   })
                 })
-                comment.replaceWith(el)
                 // console.log(children);
               }, duration);
+              comment.replaceWith(el)
             } else {
               enterTo?.split(' ').forEach(cl => {
+                if(cl === '')return
                   el.classList.remove(cl) 
                 })
               // Leave transition
               leave?.split(' ').forEach(cl => {
+                if(cl === '')return
                 el.classList.add(cl)
               })
               requestAnimationFrame(() => {
                 leaveTo?.split(' ').forEach(cl => {
+                  if(cl === '')return
                   el.classList.add(cl)
                 })
               })
               
               setTimeout(() => {
                 leave?.split(' ').forEach(cl => {
+                  if(cl === '')return
                   el.classList.remove(cl)
                 })
                 leaveTo?.split(' ').forEach(cl => {
+                  if(cl === '')return
                   el.classList.remove(cl)
                 })
               enter?.split(' ').forEach(cl => {
+                if(cl === '')return
               el.classList.add(cl)
             })
             el.replaceWith(comment)
             //
               }, duration)
             }
-            if(condition && el.getAttribute('entering') === '1'){
-              // comment.replaceWith(el)
-              console.log(condition)
+          }
+          if(el.getAttribute('entering') === '1'){
+            if(condition){
+              comment.replaceWith(el)
               el.setAttribute('entering','0')
             }else{
-              // el.replaceWith(comment)
+               el.replaceWith(comment)
               el.setAttribute('entering','0')
             
             }
+          }
            
           } catch {
             return ''; // Return empty string for invalid placeholders
@@ -229,8 +259,6 @@ export const event=(el,name,value,childContext) => {
   
       const values = keys.map((key) => resolvePath(key, childContext));
        el.addEventListener(afterColon,(e) => {
-            // keys.push('e')
-            // values.push({'e':e})
              new Function('e',...keys, ` ${value}`)(e,...values);
         })
       
@@ -244,7 +272,13 @@ export const event=(el,name,value,childContext) => {
   
 export const states=(el,name,value,context)=>{
     new Function('name','value','context','state',`
-        context.${name}=state(${value})
+       let document=null
+       let window=null
+       try{
+         context.${name}=state(${value})
+       }catch{
+       console.warn("error from ${value} and state-${name} maybe its in valid javascript or you want to set a string wrap it inside a quote ")
+       }
         `)(name,value,context,state)
 }
 export const variable=(el,name,value,context)=>{
@@ -254,11 +288,53 @@ export const variable=(el,name,value,context)=>{
           return path.split('.').reduce((acc, key) => acc?.[key], obj);
         };
       const values = keys.map((key) => resolvePath(key, context));
-      console.log(keys,values)
       new Function('name','context','el',...keys,`
         context.${name}=${value}
         `)(name,context,el,...values)
         
+        // console.log(context)
+    }
+    createEffect(()=>{
+        evaluate()
+    })
+}
+export const key=(el,exp, context, any, render)=>{
+  const fragment=document.createDocumentFragment()
+  const comment=document.createComment('key element')
+  el.replaceWith(comment)
+  el.removeAttribute('set-key')
+  fragment.appendChild(el)
+  const nodes=new Map()
+  let oldKey=null
+  let nowNode;
+    const evaluate=()=>{
+
+      const keys = Object.keys(context);
+      const resolvePath = (path, obj) => {
+          return path.split('.').reduce((acc, key) => acc?.[key], obj);
+        };
+      const values = keys.map((key) => resolvePath(key, context));
+      // console.log(context)
+    const isKey=new Function('el',...keys,`
+        return ${exp}
+        `)(el,...values)
+        if (nowNode) {
+          const newNode=fragment.firstElementChild.cloneNode(true)
+          
+          newNode.setAttribute('spe-key',isKey)
+          elementTrack(newNode).beforeEnter().enter()
+          elementTrack(nowNode).beforeLeave()
+          nowNode.replaceWith(newNode)
+          render(newNode,context)
+          nowNode=newNode
+        } else {
+          const newNode=fragment.firstElementChild.cloneNode(true)
+          newNode.setAttribute('spe-key',isKey)
+          comment.replaceWith(newNode)
+          render(newNode,context)
+          nowNode=newNode
+        }
+        // console.log(context)
     }
     createEffect(()=>{
         evaluate()
@@ -267,7 +343,11 @@ export const variable=(el,name,value,context)=>{
 
 export const For = (el, exp, context, any, render) => {
   const comment = document.createComment("it's for")
+  el.removeAttribute('for')
   const fragment = el.cloneNode(true)
+  if(components.has(el.tagName)){
+    el.setAttribute('suspense','true')
+  }
   const splitExp = exp.split(' in ')
   el.replaceWith(comment)
   const parentNode = comment.parentNode
@@ -275,6 +355,7 @@ export const For = (el, exp, context, any, render) => {
   let oldArray = []
 
   const evaluate = () => {
+    if(splitExp[1] === undefined)return;
     const arrayName = splitExp[1].trim()
     const itemExp = splitExp[0].trim()
     let itemName = itemExp
@@ -354,7 +435,11 @@ export const For = (el, exp, context, any, render) => {
             Array.from(node.childNodes).forEach(processNode)
           }
           processNode(clone)
-          render(clone, itemContext)
+          if(components.has(el.tagName)){
+            component(clone,itemContext)
+          }else{
+            render(clone, itemContext)
+          }
         } else {
           // Add new element
           clone = fragment.cloneNode(true)
@@ -387,12 +472,21 @@ export const For = (el, exp, context, any, render) => {
             }
             Array.from(node.childNodes).forEach(processNode)
           }
+         if(components.has(el.tagName)){
+          processNode(clone)
+          let ele= component(clone,itemContext)
+          ele.removeAttribute('for')
+          parentNode.insertBefore(ele, comment)
+          ele.setAttribute('key', key)
+          oldElements.push(ele)
+         }else{
           processNode(clone)
           parentNode.insertBefore(clone, comment)
           clone.removeAttribute('for')
           clone.setAttribute('key', key)
           oldElements.push(clone)
           render(clone, itemContext)
+         }
         }
       })
 
@@ -580,8 +674,9 @@ export const parentSpe=(el,value,context,name)=>{
         };
       const values = keys.map((key) => resolvePath(key, context));
       const evaluatedCondition = new Function('parent','el',...keys, `return ${content}`)(parent,el,...values);
-      const array=Array.from(evaluatedCondition)
-      if(typeof Array.from(array).values().next().value !== 'string'){
+      const array=evaluatedCondition ? Array.from(evaluatedCondition) : ''
+
+      if(array !== ''){
           if(result){
               Array.from(evaluatedCondition).forEach(child =>{
                   regenerate(child,{name:result,value:value},context) 
@@ -591,7 +686,8 @@ export const parentSpe=(el,value,context,name)=>{
                 const func= new Function('child',...keys, ` ${value}`)(child,...values);
             })
           }
-      }else{
+      }else{      
+      // console.log(content,value)
         const condition= new Function('parent','el',...keys, `${content}=${value}`)(parent,el,...values);
       }
     }catch(error){

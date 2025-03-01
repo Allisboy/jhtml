@@ -3,7 +3,7 @@ import { after, bind, click, elementIf,
    parent,parentSpe,parentslash,elememt,elementslash, 
    addClass,
    removeClass,
-   model,
+   model,key,
    watcher,variable,afterSpe,event,
    elementSpe,
    transition} from "./power.js";
@@ -39,7 +39,7 @@ const refMap=new Map()
 const beforeImp=new Map()
 const afterImp=new Map()
 const specials=new Map()
-let components = new Map();
+export const components = new Map();
 const attriPlugin=[]
 const plugin=[];
  
@@ -249,7 +249,7 @@ const createDeepProxy = (target, callback) => {
     };
   };
   
-  const component=(el,context)=>{
+ export const component=(el,context)=>{
     const compo=components.get(el.tagName)
     const instanceId = crypto.randomUUID()
     const attribute=Array.from(el.attributes)
@@ -259,7 +259,9 @@ const createDeepProxy = (target, callback) => {
     const deps = new Set()
     const  mount=[]
     const  unmount=[]
+    const allRef=[]
 
+    
     //create a mount component callback
     const onMount=(callback)=>{
       mount.push(callback)
@@ -273,7 +275,7 @@ const createDeepProxy = (target, callback) => {
       callback: () => updateComponent(instanceId)
     }
     attribute.forEach((c)=>{
-      if (c.name === 'track-key' || c.name === 'parent-key') {
+      if (c.name === 'track-key' || c.name === 'parent-key' || c.name === 'entering' || c.name === 'suspense') {
         return
       }
       if(c.value.startsWith('(')){
@@ -286,23 +288,39 @@ const createDeepProxy = (target, callback) => {
         propsAttri[c.name]={ main:new Function(...keys,`return ${c.value}`)(...values),string:extracted}
       }else{
         propsAttri[c.name]=c.value
+        // props[c.name]=c.value
       }
     })
+
     context.props={...propsAttri}
     while(el.firstChild){
       children.appendChild(el.firstChild)
     }
+    let refEle={}
+    const refs=(id)=>{
+      allRef.push(id)
+      console.log(allRef)
+      return refEle[id]
+    }
+    
+    const insert=(obj)=>{
+      Object.assign(context,obj)
+    }
     const app={
       context,
       onMount,
-      onUnMount
+      onUnMount,
+      refs,
+      insert
     }
     
     propsAttri.children=children.innerHTML
+    
     const call=compo(propsAttri,app)
     templateCache.set(instanceId, call)
     globalActiveEffect = null
     const renderTemplate = (template, props) => {
+      // console.log(template)
       const templates=templateEngine(template,props)
       const wrapper = document.createElement('div');
       wrapper.innerHTML =templates;
@@ -310,6 +328,11 @@ const createDeepProxy = (target, callback) => {
     }
     const element=renderTemplate(call,propsAttri)
     el.replaceWith(element)
+    allRef.forEach(r =>{
+      if(r){
+        refEle[r]=element.querySelector(`[ref='${r}'`)
+      }
+    })
     elementCallbacks.set(element, {
       onMount: () => {
        mount.forEach(m =>{
@@ -330,11 +353,11 @@ const createDeepProxy = (target, callback) => {
       deps
     })
     render(element,context)
-    
-    return () => {
-      templateCache.delete(instanceId)
-      componentInstances.delete(instanceId) 
-    }
+    // return () => {
+    //   templateCache.delete(instanceId)
+    //   componentInstances.delete(instanceId) 
+    // }
+    return element
   }
   
   const power={
@@ -356,7 +379,8 @@ const createDeepProxy = (target, callback) => {
     'element-slash':elementslash,
     'watcher-state':watcher,
     'afterSpe':afterSpe,
-    event
+    event,
+    'set-key':key
   }
  specials.set('if[','el-if')
   const mainAttribute = (el, exp, context) => {
@@ -450,6 +474,9 @@ const createDeepProxy = (target, callback) => {
     // if (parent) {
     //   el.setAttribute('parent-key', parent.getAttribute('track-key'))
     // }
+    const mounted =el.isConnected
+    
+
     const statesMap=new Map()
     const context={
         apply:{...apply},
@@ -464,10 +491,7 @@ const createDeepProxy = (target, callback) => {
       beforeImp.get(el.getAttribute('before-imp'))(el,context)
     }
     const attri=Array.from(el.attributes)
-    if (components.has(el.tagName)) {
-      component(el,context)
-      return
-    }
+    
     attri.forEach((k) =>{
         if(k.name.startsWith('state-')){
             const name=k.name.split('-')
@@ -526,6 +550,11 @@ const createDeepProxy = (target, callback) => {
             }
         }
     })
+    if (components.has(el.tagName)) {
+      if(el.getAttribute('suspense') === 'true') return
+      component(el,context)
+      return
+    }
     Array.from(el.children).forEach(child =>{
         render(child,context)
     })

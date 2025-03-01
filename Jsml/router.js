@@ -1,8 +1,19 @@
-import { setPlugin, state } from "./index.js"
+import { setPlugin, state ,components, component,render,RegisterComponent} from "./index.js"
 import { createEffect } from "./reactive.js"
 
 const allRoute=[]
+let currentRouteElement=document.createComment(`route`);
 const isMatch = state( window.location.pathname)
+
+// Add window location listener
+window.addEventListener('popstate', () => {
+    isMatch.value = window.location.pathname;
+});
+
+window.addEventListener('pushchange', () => {
+    isMatch.value = window.location.pathname;
+});
+
 export const navigate = (path) => {
     window.history.pushState({}, '', path);
     // Dispatch custom event to notify route changes
@@ -47,14 +58,25 @@ const matchRoute = (pattern, path) => {
   }
   
   // Usage in router function
+  const routeComponents = new Map()
   const router = (el, path, context, isMatch) => {
-      const comment = document.createComment(`route-${path}`);
+    context.navigate=navigate
+      const parent=el.ParentElement
       const routeGuard = el.getAttribute('$route-guard');
       const routeFallback = el.getAttribute('$route-fallback') || '/';
-      el.replaceWith(comment);
-      
-      const evaluate = () => {
-          const currentPath = window.location.pathname;
+      const fragment=document.createDocumentFragment()
+      el.setAttribute('suspense','true')
+      el.replaceWith(currentRouteElement);
+      if(components.has(el.tagName)){
+        //   fragment.appendChild(el)
+          routeComponents.set(path, {
+            element: el,
+            component: el.tagName
+        })
+
+        }
+        const evaluate = () => {
+            const currentPath = window.location.pathname;
           const [match, params ] = matchRoute(path, isMatch.value);
           
           try {
@@ -68,18 +90,25 @@ const matchRoute = (pattern, path) => {
                       const guard = new Function(...keys, `return ${routeGuard}`)(...values);
                       
                       if (guard) {
-                          comment.replaceWith(el);
-                      } else {
-                          el.replaceWith(comment);
-                          navigate(routeFallback)
-                      }
-                  } else {
-                      comment.replaceWith(el);
-                  }
-              } else {
-                  el.replaceWith(comment);
-                  navigate(routeFallback)
-
+                        const element=routeComponents.get(path)
+                        currentRouteElement.replaceWith(element.element);
+                       let newEle=component(element.element,context)
+                        currentRouteElement=newEle
+                        } else {
+                            const element=routeComponents.get(path)
+                            currentRouteElement.replaceWith(element.element);
+                           let newEle=component(element.element,context)
+                            currentRouteElement=newEle
+                            navigate(routeFallback)
+                        }
+                    } else {
+                        const element=routeComponents.get(path)
+                        currentRouteElement.replaceWith(element.element);
+                       let newEle=component(element.element,context)
+                        currentRouteElement=newEle      
+                    }
+                } else {
+                                  
               }
           } catch (error) {
               console.error('Route evaluation error:', error);
@@ -105,3 +134,12 @@ export const useRoute = (path) => {
  
     return isMatch
 }
+
+export const RouterLink = (props) => {
+  console.log('about')
+ return `
+        <a>${props.children && props.children}</a>
+       `
+};
+
+RegisterComponent(RouterLink);
