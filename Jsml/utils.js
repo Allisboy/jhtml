@@ -1,5 +1,3 @@
-import { transition } from "./power";
-
 export const replaceOperators = (expression) => {
   return expression
     .replace(/#/g, '=')

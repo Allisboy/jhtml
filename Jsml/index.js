@@ -364,7 +364,6 @@ const createDeepProxy = (target, callback) => {
     bind,
     addClass,
     removeClass,
-    click,
     if:If,
     for:For,
     model,
